@@ -9,7 +9,16 @@
   "environment": "backtesting", // "live-paper", "backtesting", "live-interactive", "live-interactive-iqfeed"
 
   // algorithm class selector
-  "algorithm-type-name": "LayeredBuyingAlgorithm",
+  //"algorithm-type-name": "LayeredBuyingAlgorithm",
+  "algorithm-type-name": "LayeredCryptoAlgorithm",
+
+  // parameters to set in the algorithm (the below are just samples)
+  "parameters": {
+    "orderSize": "0.0001",
+    "buyThreshold": 0.001,
+    "sellThreshold": 0.01,
+    "trailingStopPercent": 0.0007
+  },
 
   // Algorithm language selector - options CSharp, Python
   "algorithm-language": "CSharp",
@@ -203,7 +212,7 @@
   },
 
   // specify supported languages when running regression tests
-  "regression-test-languages": [ "CSharp"/*, "Python"*/ ],
+  "regression-test-languages": [ "CSharp" /*, "Python"*/ ],
 
   "environments": {
 
@@ -345,6 +354,7 @@
       "history-provider": "BrokerageHistoryProvider"
     },
 
+    // Previous name for Coinbase pro
     "live-gdax": {
       "live-mode": true,
 
