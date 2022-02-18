@@ -87,7 +87,7 @@ namespace QuantConnect.ToolBox.KrakenDownloader
 
                 foreach (var i in data)
                 {
-                    var time = Time.UnixTimeStampToDateTime(Parse.Double(i[2].Split('.')[0]));
+                    var time = DateTimeOffset.FromUnixTimeMilliseconds((long)Math.Round(Parse.Double(i[2]) * 1000)).ToLocalTime().DateTime;
                     if (time > endUtc)
                     {
                         break;
