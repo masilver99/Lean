@@ -10,7 +10,7 @@
 
   // algorithm class selector
   //"algorithm-type-name": "LayeredBuyingAlgorithm",
-  "algorithm-type-name": "LayeredCryptoAlgorithm",
+  "algorithm-type-name": "InitialCryptoAlgorithm",
 
   // parameters to set in the algorithm (the below are just samples)
   "parameters": {
