@@ -18,14 +18,17 @@ using NUnit.Framework;
 using Python.Runtime;
 using QuantConnect.Data;
 using QuantConnect.Data.Custom;
+using QuantConnect.Data.Custom.IconicTypes;
 using QuantConnect.Data.Market;
 using QuantConnect.Data.UniverseSelection;
 using QuantConnect.Lean.Engine.DataFeeds;
 using QuantConnect.Python;
 using QuantConnect.Securities;
 using System;
+using System.Globalization;
 using System.Collections.Generic;
 using System.Linq;
+using QuantConnect.Tests.Common.Data.UniverseSelection;
 using QuantConnect.Tests.ToolBox;
 using QuantConnect.ToolBox;
 using QuantConnect.Util;
@@ -3228,16 +3231,16 @@ def Test(dataFrame, symbol):
         }
 
         [Test]
-        [TestCase(typeof(Quandl), "yyyy-MM-dd")]
+        [TestCase(typeof(CustomData), "yyyy-MM-dd")]
         [TestCase(typeof(FxcmVolume), "yyyyMMdd HH:mm")]
         public void HandlesCustomDataBars(Type type, string format)
         {
             var converter = new PandasConverter();
             var symbol = Symbols.LTCUSD;
 
-            var config = GetSubscriptionDataConfig<Quandl>(symbol, Resolution.Daily);
+            var config = GetSubscriptionDataConfig<BaseData>(symbol, Resolution.Daily);
             var custom = Activator.CreateInstance(type) as BaseData;
-            if (type == typeof(Quandl)) custom.Reader(config, "date,open,high,low,close,transactions", DateTime.UtcNow, false);
+            if (type == typeof(CustomData)) custom.Reader(config, "date,open,high,low,close,transactions", DateTime.UtcNow, false);
 
             var rawBars = Enumerable
                 .Range(0, 10)
@@ -3310,8 +3313,8 @@ def Test(dataFrame, symbol):
             var converter = new PandasConverter();
             var symbol = Symbols.LTCUSD;
 
-            var config = GetSubscriptionDataConfig<Quandl>(symbol, Resolution.Daily);
-            var custom = Activator.CreateInstance(typeof(CustomQuandl)) as BaseData;
+            var config = GetSubscriptionDataConfig<BaseData>(symbol, Resolution.Daily);
+            var custom = Activator.CreateInstance(typeof(CustomData)) as BaseData;
             custom.Reader(config, "Date,Value", DateTime.UtcNow, false);
 
             var rawBars = Enumerable
@@ -3375,7 +3378,7 @@ def Test(dataFrame, symbol):
             var converter = new PandasConverter();
             var symbol = Symbols.LTCUSD;
 
-            var config = GetSubscriptionDataConfig<Quandl>(symbol, Resolution.Daily);
+            var config = GetSubscriptionDataConfig<UnlinkedDataTradeBar>(symbol, Resolution.Daily);
             dynamic custom = Activator.CreateInstance(type);
 
             var rawBars = Enumerable
@@ -3506,7 +3509,7 @@ def Test(dataFrame, symbol):
             return data.Select(t => timeSliceFactory.Create(
                t.Time,
                new List<DataFeedPacket> { new DataFeedPacket(security, subscriptionDataConfig, new List<BaseData>() { t as BaseData }) },
-               new SecurityChanges(Enumerable.Empty<Security>(), Enumerable.Empty<Security>()),
+               SecurityChangesTests.CreateNonInternal(Enumerable.Empty<Security>(), Enumerable.Empty<Security>()),
                 new Dictionary<Universe, BaseDataCollection>()).Slice);
         }
 
@@ -3560,7 +3563,7 @@ def Test(dataFrame, symbol):
                                     Quantity = 1 + i * 10,
                                     Exchange = "T"
                                 }
-                            )
+                            ), time
                         );
                     }
                 );
@@ -3600,11 +3603,47 @@ def Test(dataFrame, symbol):
             public double? NullableColumn { get; set; }
         }
 
-        internal class CustomQuandl : Quandl
+        internal class CustomData: DynamicData
         {
-            // For CustomDataWithValueColumn test
-            public CustomQuandl() : base("Value")
+            private bool _isInitialized;
+            private readonly List<string> _propertyNames = new List<string>();
+
+            public override BaseData Reader(SubscriptionDataConfig config, string line, DateTime date, bool isLiveMode)
             {
+                // be sure to instantiate the correct type
+                var data = (CustomData)Activator.CreateInstance(GetType());
+                data.Symbol = config.Symbol;
+                var csv = line.Split(',');
+
+                if (!_isInitialized)
+                {
+                    _isInitialized = true;
+                    foreach (var propertyName in csv)
+                    {
+                        var property = propertyName.Trim();
+                        // should we remove property names like Time?
+                        // do we need to alias the Time??
+                        data.SetProperty(property, 0m);
+                        _propertyNames.Add(property);
+                    }
+                    // Returns null at this point where we are only reading the properties names
+                    return null;
+                }
+
+                data.Time = DateTime.ParseExact(csv[0], "yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+                for (var i = 1; i < csv.Length; i++)
+                {
+                    var value = csv[i].ToDecimal();
+                    data.SetProperty(_propertyNames[i], value);
+                }
+                
+                if (!_propertyNames.Contains("Value"))
+                {
+                    data.Value = 1;
+                }
+
+                return data;
             }
         }
 

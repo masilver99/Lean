@@ -207,14 +207,11 @@ namespace QuantConnect.Orders
         protected Order()
         {
             Time = new DateTime();
-            Price = 0;
             PriceCurrency = string.Empty;
-            Quantity = 0;
             Symbol = Symbol.Empty;
             Status = OrderStatus.None;
-            Tag = "";
+            Tag = string.Empty;
             BrokerId = new List<string>();
-            ContingentId = 0;
             Properties = new OrderProperties();
             UserProperties = new OrderUserProperties();
         }
@@ -230,14 +227,12 @@ namespace QuantConnect.Orders
         protected Order(Symbol symbol, decimal quantity, DateTime time, string tag = "", IOrderProperties properties = null, OrderUserProperties userProperties = null)
         {
             Time = time;
-            Price = 0;
             PriceCurrency = string.Empty;
             Quantity = quantity;
             Symbol = symbol;
             Status = OrderStatus.None;
             Tag = tag;
             BrokerId = new List<string>();
-            ContingentId = 0;
             Properties = properties ?? new OrderProperties();
             UserProperties = userProperties ?? new OrderUserProperties();
         }

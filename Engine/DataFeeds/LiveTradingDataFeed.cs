@@ -192,12 +192,6 @@ namespace QuantConnect.Lean.Engine.DataFeeds
                 IEnumerator<BaseData> enumerator;
                 if (!_channelProvider.ShouldStreamSubscription(request.Configuration))
                 {
-                    if (!Quandl.IsAuthCodeSet)
-                    {
-                        // we're not using the SubscriptionDataReader, so be sure to set the auth token here
-                        Quandl.SetAuthCode(Config.Get("quandl-auth-token"));
-                    }
-
                     if (!Tiingo.IsAuthCodeSet)
                     {
                         // we're not using the SubscriptionDataReader, so be sure to set the auth token here
@@ -241,6 +235,17 @@ namespace QuantConnect.Lean.Engine.DataFeeds
                     {
                         enumerator = new LiveAuxiliaryDataSynchronizingEnumerator(_timeProvider, request.Configuration.ExchangeTimeZone, enumerator, auxEnumerators);
                     }
+                }
+
+                // scale prices before 'SubscriptionFilterEnumerator' since it updates securities realtime price
+                // and before fill forwarding so we don't happen to apply twice the factor
+                if (request.Configuration.PricesShouldBeScaled(liveMode:true))
+                {
+                    enumerator = new PriceScaleFactorEnumerator(
+                        enumerator,
+                        request.Configuration,
+                        _factorFileProvider,
+                        liveMode:true);
                 }
 
                 if (request.Configuration.FillDataForward)

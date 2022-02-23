@@ -513,16 +513,18 @@ namespace QuantConnect.Algorithm
             }
 
             var result = new Dictionary<TickType, BaseData>();
-            // For speed and memory usage, use Resolution.Minute as the minimum resolution
-            var resolution = (Resolution)Math.Max((int)Resolution.Minute,
-                (int)SubscriptionManager.SubscriptionDataConfigService.GetSubscriptionDataConfigs(symbol).GetHighestResolution());
+            Resolution? resolution = null;
             Func<int, bool> requestData = period =>
             {
-                var historyRequests = CreateBarCountHistoryRequests(new[] { symbol }, period, resolution)
+                var historyRequests = CreateBarCountHistoryRequests(new[] { symbol }, period)
                     .Select(request =>
                     {
+                        // For speed and memory usage, use Resolution.Minute as the minimum resolution
+                        request.Resolution = (Resolution)Math.Max((int)Resolution.Minute, (int)request.Resolution);
                         // force no fill forward behavior
                         request.FillForwardResolution = null;
+
+                        resolution = request.Resolution;
                         return request;
                     })
                     // request only those tick types we didn't get the data we wanted
@@ -547,12 +549,21 @@ namespace QuantConnect.Algorithm
 
             if (!requestData(5))
             {
-                // If the first attempt to get the last know price returns null, it maybe the case of an illiquid security.
-                // We increase the look-back period for this case accordingly to the resolution to cover 3 trading days
-                var periods =
-                    resolution == Resolution.Daily ? 3 :
-                    resolution == Resolution.Hour ? 24 : 1440;
-                requestData(periods);
+                if (resolution.HasValue)
+                {
+                    // If the first attempt to get the last know price returns null, it maybe the case of an illiquid security.
+                    // We increase the look-back period for this case accordingly to the resolution to cover 3 trading days
+                    var periods =
+                        resolution.Value == Resolution.Daily ? 3 :
+                        resolution.Value == Resolution.Hour ? 24 : 1440;
+                    requestData(periods);
+                }
+                else
+                {
+                    // this shouldn't happen but just in case
+                    QuantConnect.Logging.Log.Error(
+                        $"QCAlgorithm.GetLastKnownPrices(): no history request was created for symbol {symbol} at {Time}");
+                }
             }
             // return the data ordered by time ascending
             return result.Values.OrderBy(data => data.Time);
@@ -804,9 +815,30 @@ namespace QuantConnect.Algorithm
             Security security;
             if (Securities.TryGetValue(symbol, out security))
             {
-                return resolution ?? SubscriptionManager.SubscriptionDataConfigService
-                    .GetSubscriptionDataConfigs(symbol)
-                    .GetHighestResolution();
+                if (resolution != null)
+                {
+                    return resolution.Value;
+                }
+
+                Resolution? result = null;
+                var hasNonInternal = false;
+                foreach (var config in SubscriptionManager.SubscriptionDataConfigService
+                    .GetSubscriptionDataConfigs(symbol, includeInternalConfigs: true)
+                    // we process non internal configs first
+                    .OrderBy(config => config.IsInternalFeed ? 1 : 0))
+                {
+                    if (!config.IsInternalFeed || !hasNonInternal)
+                    {
+                        // once we find a non internal config we ignore internals
+                        hasNonInternal |= !config.IsInternalFeed;
+                        if (!result.HasValue || config.Resolution < result)
+                        {
+                            result = config.Resolution;
+                        }
+                    }
+                }
+
+                return result ?? UniverseSettings.Resolution;
             }
             else
             {

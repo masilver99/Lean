@@ -174,10 +174,18 @@ namespace QuantConnect
         /// Helper method to download a provided url as a string
         /// </summary>
         /// <param name="url">The url to download data from</param>
-        public static string DownloadData(this string url)
+        /// <param name="headers">Add custom headers for the request</param>
+        public static string DownloadData(this string url, Dictionary<string, string> headers = null)
         {
             using (var client = new HttpClient())
             {
+                if (headers != null)
+                {
+                    foreach (var kvp in headers)
+                    {
+                        client.DefaultRequestHeaders.Add(kvp.Key, kvp.Value);
+                    }
+                }
                 try
                 {
                     using (var response = client.GetAsync(url).Result)
@@ -1355,6 +1363,26 @@ namespace QuantConnect
         }
 
         /// <summary>
+        /// Helper method to determine if a data type implements the Stream reader method
+        /// </summary>
+        public static bool ImplementsStreamReader(this Type baseDataType)
+        {
+            // we know these type implement the streamReader interface lets avoid dynamic reflection call to figure it out
+            if (baseDataType == typeof(TradeBar) || baseDataType == typeof(QuoteBar) || baseDataType == typeof(Tick))
+            {
+                return true;
+            }
+
+            var method = baseDataType.GetMethod("Reader",
+                new[] { typeof(SubscriptionDataConfig), typeof(StreamReader), typeof(DateTime), typeof(bool) });
+            if (method != null && method.DeclaringType == baseDataType)
+            {
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Breaks the specified string into csv components, all commas are considered separators
         /// </summary>
         /// <param name="str">The string to be broken into csv</param>
@@ -1612,6 +1640,45 @@ namespace QuantConnect
                 rounded = roundedDateTimeInRoundingTimeZone.ConvertTo(roundingTimeZone, exchangeHours.TimeZone);
             }
             return rounded;
+        }
+
+        /// <summary>
+        /// Helper method to determine if a specific market is open
+        /// </summary>
+        /// <param name="security">The target security</param>
+        /// <param name="extendedMarketHours">True if should consider extended market hours</param>
+        /// <returns>True if the market is open</returns>
+        public static bool IsMarketOpen(this Security security, bool extendedMarketHours)
+        {
+            if (!security.Exchange.Hours.IsOpen(security.LocalTime, extendedMarketHours))
+            {
+                // if we're not open at the current time exactly, check the bar size, this handle large sized bars (hours/days)
+                var currentBar = security.GetLastData();
+                if (currentBar == null
+                    || security.LocalTime.Date != currentBar.EndTime.Date
+                    || !security.Exchange.IsOpenDuringBar(currentBar.Time, currentBar.EndTime, extendedMarketHours))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Helper method to determine if a specific market is open
+        /// </summary>
+        /// <param name="symbol">The target symbol</param>
+        /// <param name="utcTime">The current UTC time</param>
+        /// <param name="extendedMarketHours">True if should consider extended market hours</param>
+        /// <returns>True if the market is open</returns>
+        public static bool IsMarketOpen(this Symbol symbol, DateTime utcTime, bool extendedMarketHours)
+        {
+            var exchangeHours = MarketHoursDatabase.FromDataFolder()
+                .GetExchangeHours(symbol.ID.Market, symbol, symbol.SecurityType);
+
+            var time = utcTime.ConvertFromUtc(exchangeHours.TimeZone);
+
+            return exchangeHours.IsOpen(time, extendedMarketHours);
         }
 
         /// <summary>
@@ -2485,11 +2552,25 @@ namespace QuantConnect
             {
                 try
                 {
+                    // We must first check if allowPythonDerivative is true to then only return true
+                    // when the PyObject is assignable from Type or IEnumerable and is a C# type
+                    // wrapped in PyObject
+                    if (allowPythonDerivative)
+                    {
+                        result = (T)pyObject.AsManagedObject(type);
+                        return true;
+                    }
+
                     // Special case: Type
                     if (typeof(Type).IsAssignableFrom(type))
                     {
                         result = (T)pyObject.AsManagedObject(type);
-                        return true;
+                        // pyObject is a C# object wrapped in PyObject, in this case return true
+                        // Otherwise, pyObject is a python object that subclass a C# class, only return true if 'allowPythonDerivative'
+                        var castedResult = (Type)pyObject.AsManagedObject(type);
+                        var pythonName = pyObject.GetAttr("__name__").GetAndDispose<string>();
+
+                        return pythonName == castedResult.Name;
                     }
 
                     // Special case: IEnumerable
@@ -2515,7 +2596,7 @@ namespace QuantConnect
                     // Otherwise, pyObject is a python object that subclass a C# class, only return true if 'allowPythonDerivative'
                     var name = (((dynamic) pythonType).__name__ as PyObject).GetAndDispose<string>();
                     pythonType.Dispose();
-                    return allowPythonDerivative || name == result.GetType().Name;
+                    return name == result.GetType().Name;
                 }
                 catch
                 {
@@ -2815,9 +2896,7 @@ namespace QuantConnect
         public static Type CreateType(this PyObject pyObject)
         {
             Type type;
-            if (pyObject.TryConvert(out type) &&
-                type != typeof(PythonQuandl) &&
-                type != typeof(PythonData))
+            if (pyObject.TryConvert(out type))
             {
                 return type;
             }
@@ -2825,15 +2904,12 @@ namespace QuantConnect
             PythonActivator pythonType;
             if (!PythonActivators.TryGetValue(pyObject.Handle, out pythonType))
             {
-                AssemblyName an;
-                using (Py.GIL())
-                {
-                    an = new AssemblyName(pyObject.Repr().Split('\'')[1]);
-                }
+                var assemblyName = pyObject.GetAssemblyName();
                 var typeBuilder = AssemblyBuilder
-                    .DefineDynamicAssembly(an, AssemblyBuilderAccess.Run)
+                    .DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.Run)
                     .DefineDynamicModule("MainModule")
-                    .DefineType(an.Name, TypeAttributes.Class, type);
+                    // creating the type as public is required to allow 'dynamic' to be able to bind at runtime
+                    .DefineType(assemblyName.Name, TypeAttributes.Class | TypeAttributes.Public, type);
 
                 pythonType = new PythonActivator(typeBuilder.CreateType(), pyObject);
 
@@ -2843,6 +2919,19 @@ namespace QuantConnect
                 PythonActivators.Add(pyObject.Handle, pythonType);
             }
             return pythonType.Type;
+        }
+
+        /// <summary>
+        /// Helper method to get the assembly name from a python type
+        /// </summary>
+        /// <param name="pyObject">Python object pointing to the python type. <see cref="PyObject.GetPythonType"/></param>
+        /// <returns>The python type assembly name</returns>
+        public static AssemblyName GetAssemblyName(this PyObject pyObject)
+        {
+            using (Py.GIL())
+            {
+                return new AssemblyName(pyObject.Repr().Split('\'')[1]);
+            }
         }
 
         /// <summary>
@@ -3204,6 +3293,41 @@ namespace QuantConnect
                 case DataNormalizationMode.Raw:
                 default:
                     return data;
+            }
+        }
+
+        /// <summary>
+        /// Thread safe concurrent dictionary order by implementation by using <see cref="SafeEnumeration{TSource,TKey}"/>
+        /// </summary>
+        /// <remarks>See https://stackoverflow.com/questions/47630824/is-c-sharp-linq-orderby-threadsafe-when-used-with-concurrentdictionarytkey-tva</remarks>
+        public static IOrderedEnumerable<KeyValuePair<TSource, TKey>> OrderBySafe<TSource, TKey>(
+            this ConcurrentDictionary<TSource, TKey> source, Func<KeyValuePair<TSource, TKey>, TSource> keySelector
+            )
+        {
+            return source.SafeEnumeration().OrderBy(keySelector);
+        }
+
+        /// <summary>
+        /// Thread safe concurrent dictionary order by implementation by using <see cref="SafeEnumeration{TSource,TKey}"/>
+        /// </summary>
+        /// <remarks>See https://stackoverflow.com/questions/47630824/is-c-sharp-linq-orderby-threadsafe-when-used-with-concurrentdictionarytkey-tva</remarks>
+        public static IOrderedEnumerable<KeyValuePair<TSource, TKey>> OrderBySafe<TSource, TKey>(
+            this ConcurrentDictionary<TSource, TKey> source, Func<KeyValuePair<TSource, TKey>, TKey> keySelector
+            )
+        {
+            return source.SafeEnumeration().OrderBy(keySelector);
+        }
+
+        /// <summary>
+        /// Force concurrent dictionary enumeration using a thread safe implementation
+        /// </summary>
+        /// <remarks>See https://stackoverflow.com/questions/47630824/is-c-sharp-linq-orderby-threadsafe-when-used-with-concurrentdictionarytkey-tva</remarks>
+        public static IEnumerable<KeyValuePair<TSource, TKey>> SafeEnumeration<TSource, TKey>(
+            this ConcurrentDictionary<TSource, TKey> source)
+        {
+            foreach (var kvp in source)
+            {
+                yield return kvp;
             }
         }
 

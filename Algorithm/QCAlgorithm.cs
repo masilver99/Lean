@@ -67,7 +67,7 @@ namespace QuantConnect.Algorithm
         const string Indicators = "Indicators";
         const string LiveTrading = "Live Trading";
         const string Logging = "Logging";
-        const string MachineLearning = "MachineLearning";
+        const string MachineLearning = "Machine Learning";
         const string Modeling = "Modeling";
         const string ParameterAndOptimization = "Parameter and Optimization";
         const string ScheduledEvents = "Scheduled Events";
@@ -1680,6 +1680,12 @@ namespace QuantConnect.Algorithm
                             contractDepthOffset: contractOffset
                         );
 
+                        // let's add a MHDB entry for the continuous symbol using the associated security
+                        var continuousContractSymbol = ContinuousContractUniverse.CreateSymbol(security.Symbol);
+                        MarketHoursDatabase.SetEntry(continuousContractSymbol.ID.Market,
+                            continuousContractSymbol.ID.Symbol,
+                            continuousContractSymbol.ID.SecurityType,
+                            security.Exchange.Hours);
                         AddUniverse(new ContinuousContractUniverse(security, new UniverseSettings(settings)
                             {
                                 DataMappingMode = continuousConfigs.First().DataMappingMode,
@@ -1687,7 +1693,7 @@ namespace QuantConnect.Algorithm
                                 ContractDepthOffset = (int)continuousConfigs.First().ContractDepthOffset,
                                 SubscriptionDataTypes = dataTypes
                             }, LiveMode,
-                            new SubscriptionDataConfig(canonicalConfig, symbol: ContinuousContractUniverse.CreateSymbol(security.Symbol))));
+                            new SubscriptionDataConfig(canonicalConfig, symbol: continuousContractSymbol)));
 
                         universe = new FuturesChainUniverse((Future)security, settings);
                     }
@@ -1975,8 +1981,9 @@ namespace QuantConnect.Algorithm
             Universe universe;
             if (!UniverseManager.TryGetValue(universeSymbol, out universe))
             {
+                var settings = new UniverseSettings(UniverseSettings) { DataNormalizationMode = DataNormalizationMode.Raw, Resolution = underlyingConfigs.GetHighestResolution() };
                 universe = _pendingUniverseAdditions.FirstOrDefault(u => u.Configuration.Symbol == universeSymbol)
-                           ?? AddUniverse(new OptionContractUniverse(new SubscriptionDataConfig(configs.First(), symbol: universeSymbol), UniverseSettings));
+                           ?? AddUniverse(new OptionContractUniverse(new SubscriptionDataConfig(configs.First(), symbol: universeSymbol), settings));
             }
 
             // update the universe
@@ -2128,10 +2135,16 @@ namespace QuantConnect.Algorithm
             }
             else
             {
-                foreach (var universe in UniverseManager.Select(x => x.Value).OfType<UserDefinedUniverse>().Where(x => x.Members.ContainsKey(symbol)))
+                // we need to handle existing universes and pending to be added universes, that will be pushed
+                // at the end of this time step see OnEndOfTimeStep()
+                foreach (var universe in UniverseManager.Select(x => x.Value)
+                    .Concat(_pendingUniverseAdditions)
+                    .OfType<UserDefinedUniverse>())
                 {
                     universe.Remove(symbol);
                 }
+                // for existing universes we need to purge pending additions too, also handled at OnEndOfTimeStep()
+                _pendingUserDefinedUniverseSecurityAdditions.RemoveAll(addition => addition.Security.Symbol == symbol);
             }
 
             return true;
