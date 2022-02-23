@@ -38,8 +38,8 @@ namespace QuantConnect.Util
         /// The different <see cref="SecurityType"/> used for data paths
         /// </summary>
         /// <remarks>This includes 'alternative'</remarks>
-        public static IReadOnlyList<string> SecurityTypeAsDataPath => Enum.GetNames(typeof(SecurityType))
-            .Select(x => x.ToLowerInvariant()).Union(new[] { "alternative" }).ToList();
+        public static HashSet<string> SecurityTypeAsDataPath => Enum.GetNames(typeof(SecurityType))
+            .Select(x => x.ToLowerInvariant()).Union(new[] { "alternative" }).ToHashSet();
 
         /// <summary>
         /// Converts the specified base data instance into a lean data file csv line.
@@ -472,7 +472,8 @@ namespace QuantConnect.Util
         ///  <see cref="QuoteBar"/> or <see cref="OpenInterest"/></returns>
         public static bool IsCommonLeanDataType(Type baseDataType)
         {
-            if (baseDataType == typeof(TradeBar) ||
+            if (baseDataType == typeof(Tick) ||
+                baseDataType == typeof(TradeBar) ||
                 baseDataType == typeof(QuoteBar) ||
                 baseDataType == typeof(OpenInterest))
             {
@@ -726,6 +727,7 @@ namespace QuantConnect.Util
                 case SecurityType.IndexOption:
                     if (isHourOrDaily)
                     {
+                        // see TryParsePath: he knows tick type position is 3
                         var optionPath = symbol.Underlying.Value.ToLowerInvariant();
                         return $"{optionPath}_{date.Year}_{tickTypeString}_{symbol.ID.OptionStyle.OptionStyleToLower()}.zip";
                     }
@@ -735,6 +737,7 @@ namespace QuantConnect.Util
                 case SecurityType.FutureOption:
                     if (isHourOrDaily)
                     {
+                        // see TryParsePath: he knows tick type position is 3
                         var futureOptionPath = symbol.ID.Symbol.ToLowerInvariant();
                         return $"{futureOptionPath}_{date.Year}_{tickTypeString}_{symbol.ID.OptionStyle.OptionStyleToLower()}.zip";
                     }
@@ -963,9 +966,11 @@ namespace QuantConnect.Util
         /// </summary>
         /// <param name="fileName">File name to be parsed</param>
         /// <param name="securityType">The securityType as parsed from the fileName</param>
-        public static bool TryParseSecurityType(string fileName, out SecurityType securityType)
+        /// <param name="market">The market as parsed from the fileName</param>
+        public static bool TryParseSecurityType(string fileName, out SecurityType securityType, out string market)
         {
             securityType = SecurityType.Base;
+            market = string.Empty;
 
             try
             {
@@ -974,6 +979,13 @@ namespace QuantConnect.Util
                 // find the securityType and parse it
                 var typeString = info.Find(x => SecurityTypeAsDataPath.Contains(x.ToLowerInvariant()));
                 securityType = ParseDataSecurityType(typeString);
+
+                var existingMarkets = Market.SupportedMarkets();
+                var foundMarket = info.Find(x => existingMarkets.Contains(x.ToLowerInvariant()));
+                if (foundMarket != null)
+                {
+                    market = foundMarket;
+                }
             }
             catch (Exception e)
             {
@@ -1013,7 +1025,15 @@ namespace QuantConnect.Util
                 var fileName = Path.GetFileNameWithoutExtension(filePath);
                 if (fileName.Contains("_"))
                 {
-                    tickType = (TickType)Enum.Parse(typeof(TickType), fileName.Split('_')[1], true);
+                    // example: 20140606_openinterest_american.zip
+                    var tickTypePosition = 1;
+                    if (resolution >= Resolution.Hour && symbol.SecurityType.IsOption())
+                    {
+                        // daily and hourly have the year too, example: aapl_2014_openinterest_american.zip
+                        // see GenerateZipFileName he's creating these paths
+                        tickTypePosition = 2;
+                    }
+                    tickType = (TickType)Enum.Parse(typeof(TickType), fileName.Split('_')[tickTypePosition], true);
                 }
 
                 dataType = GetDataType(resolution, tickType);

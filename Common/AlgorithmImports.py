@@ -40,6 +40,7 @@ from QuantConnect.Python import *
 from QuantConnect.Storage import *
 from QuantConnect.Research import *
 from QuantConnect.Algorithm import *
+from QuantConnect.Statistics import *
 from QuantConnect.Parameters import *
 from QuantConnect.Benchmarks import *
 from QuantConnect.Brokerages import *
@@ -69,6 +70,7 @@ from QuantConnect.Algorithm.Framework import *
 from QuantConnect.Securities.Volatility import *
 from QuantConnect.Securities.Interfaces import *
 from QuantConnect.Data.UniverseSelection import *
+from QuantConnect.Data.Custom.IconicTypes import *
 from QuantConnect.Data.Custom.AlphaStreams import *
 from QuantConnect.Algorithm.Framework.Risk import *
 from QuantConnect.Algorithm.Framework.Alphas import *

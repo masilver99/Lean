@@ -55,7 +55,7 @@ namespace QuantConnect.Brokerages.InteractiveBrokers
         /// <summary>
         /// The default gateway version to use
         /// </summary>
-        public static string DefaultVersion { get; } = "985";
+        public static string DefaultVersion { get; } = "1012";
 
         private IBAutomater.IBAutomater _ibAutomater;
 
@@ -2038,12 +2038,18 @@ namespace QuantConnect.Brokerages.InteractiveBrokers
             var securityType = ConvertSecurityType(symbol.SecurityType);
             var ibSymbol = _symbolMapper.GetBrokerageSymbol(symbol);
 
+            var symbolProperties = _symbolPropertiesDatabase.GetSymbolProperties(
+                symbol.ID.Market,
+                symbol,
+                symbol.SecurityType,
+                Currencies.USD);
+
             var contract = new Contract
             {
                 Symbol = ibSymbol,
                 Exchange = exchange ?? GetSymbolExchange(symbol),
                 SecType = securityType,
-                Currency = Currencies.USD
+                Currency = symbolProperties.QuoteCurrency
             };
             if (symbol.ID.SecurityType == SecurityType.Forex)
             {
@@ -2108,12 +2114,6 @@ namespace QuantConnect.Brokerages.InteractiveBrokers
                 contract.Symbol = ibSymbol;
                 contract.LastTradeDateOrContractMonth = symbol.ID.Date.ToStringInvariant(DateFormat.EightCharacter);
                 contract.Exchange = GetSymbolExchange(symbol);
-
-                var symbolProperties = _symbolPropertiesDatabase.GetSymbolProperties(
-                    symbol.ID.Market,
-                    symbol,
-                    symbol.SecurityType,
-                    Currencies.USD);
 
                 contract.Multiplier = Convert.ToInt32(symbolProperties.ContractMultiplier).ToStringInvariant();
 
@@ -2614,7 +2614,7 @@ namespace QuantConnect.Brokerages.InteractiveBrokers
             Initialize(null,
                 null,
                 null,
-                Composer.Instance.GetExportedValueByTypeName<IDataAggregator>(Config.Get("data-aggregator", "QuantConnect.Lean.Engine.DataFeeds.AggregationManager")),
+                Composer.Instance.GetExportedValueByTypeName<IDataAggregator>(Config.Get("data-aggregator", "QuantConnect.Lean.Engine.DataFeeds.AggregationManager"), forceTypeNameOnExisting: false),
                 Composer.Instance.GetExportedValueByTypeName<IMapFileProvider>(Config.Get("map-file-provider", "QuantConnect.Data.Auxiliary.LocalDiskMapFileProvider")),
                 account,
                 host,

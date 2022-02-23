@@ -25,6 +25,7 @@ using QuantConnect.Data;
 using QuantConnect.Data.Market;
 using QuantConnect.Data.UniverseSelection;
 using QuantConnect.Securities;
+using QuantConnect.Tests.Common.Data.UniverseSelection;
 using QuantConnect.Tests.Engine.DataFeeds;
 
 namespace QuantConnect.Tests.Common.Securities
@@ -139,7 +140,7 @@ namespace QuantConnect.Tests.Common.Securities
                 )
             );
             var usdjpy = new Security(Symbols.USDJPY, SecurityExchangeHours, new Cash("JPY", 0, 0), SymbolProperties.GetDefault("JPY"), ErrorCurrencyConverter.Instance, RegisteredSecurityDataTypesProvider.Null, new SecurityCache());
-            var changes = new SecurityChanges(new[] { usdjpy }, Enumerable.Empty<Security>());
+            var changes = SecurityChangesTests.CreateNonInternal(new[] { usdjpy }, Enumerable.Empty<Security>());
             var addedSecurities = cash.EnsureCurrencyDataFeed(securities, subscriptions, MarketMap, changes, dataManager.SecurityService, cashBook.AccountCurrency);
 
             // the security exists in SecurityChanges so it is NOT added to the security manager or subscriptions
@@ -675,9 +676,10 @@ namespace QuantConnect.Tests.Common.Securities
             new object[] { new BitfinexBrokerageModel(), Currencies.GBP, "EURS", false, new[] { Symbol.Create("EURSUSD", SecurityType.Crypto, Market.Bitfinex), Symbol.Create("GBPUSD", SecurityType.Forex, Market.Oanda) } }, // No EURSGBP, but indirect conversion exists
 
             // USDT (Tether) Cases
+            new object[] { new BitfinexBrokerageModel(), Currencies.CNH, "USDT", false, new[] { Symbol.Create("USDTCNHT", SecurityType.Crypto, Market.Bitfinex), Symbol.Create("CNHCNHT", SecurityType.Crypto, Market.Bitfinex) } }, // No USDTCNH, but indirect conversion exists
             new object[] { new BitfinexBrokerageModel(), Currencies.USD, "USDT", false, new[] { Symbol.Create("USDTUSD", SecurityType.Crypto, Market.Bitfinex) } },
-            new object[] { new BitfinexBrokerageModel(), Currencies.EUR, "USDT", false, new[] { Symbol.Create("BTCUSDT", SecurityType.Crypto, Market.Bitfinex), Symbol.Create("BTCEUR", SecurityType.Crypto, Market.Bitfinex) } }, // No USDTEUR, but indirect conversion exists
-            new object[] { new BitfinexBrokerageModel(), Currencies.GBP, "USDT", false, new[] { Symbol.Create("BTCUSDT", SecurityType.Crypto, Market.Bitfinex), Symbol.Create("BTCGBP", SecurityType.Crypto, Market.Bitfinex) } }, // No USDTGBP, but indirect conversion exists
+            new object[] { new BitfinexBrokerageModel(), Currencies.EUR, "USDT", false, new[] { Symbol.Create("EURUSDT", SecurityType.Crypto, Market.Bitfinex) } }, 
+            new object[] { new BitfinexBrokerageModel(), Currencies.GBP, "USDT", false, new[] { Symbol.Create("GBPUSDT", SecurityType.Crypto, Market.Bitfinex) } }, 
 
             // *** GDAX ***
             // Trades USDC and USDT* (*Not yet trading live, but expected soon)

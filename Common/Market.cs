@@ -62,7 +62,9 @@ namespace QuantConnect
             Tuple.Create(HKFE, 25),
 
             Tuple.Create(CFE, 33),
-            Tuple.Create(FTX, 34)
+            Tuple.Create(FTX, 34),
+            Tuple.Create(FTXUS, 35),
+            Tuple.Create(BinanceUS, 36)
         };
 
         static Market()
@@ -212,6 +214,15 @@ namespace QuantConnect
         /// </summary>
         public const string FTX = "ftx";
 
+        /// <summary>
+        /// FTX.US
+        /// </summary>
+        public const string FTXUS = "ftxus";
+
+        /// <summary>
+        /// Binance.US
+        /// </summary>
+        public const string BinanceUS = "binanceus";
 
         /// <summary>
         /// Adds the specified market to the map of available markets with the specified identifier.
@@ -278,6 +289,14 @@ namespace QuantConnect
         public static string Decode(int code)
         {
             return !ReverseMarkets.TryGetValue(code, out var market) ? null : market;
+        }
+
+        /// <summary>
+        /// Returns a list of the supported markets
+        /// </summary>
+        public static List<string> SupportedMarkets()
+        {
+            return Markets.Keys.ToList();
         }
     }
 }

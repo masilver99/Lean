@@ -255,7 +255,7 @@ namespace QuantConnect.Brokerages.Backtesting
                 var stillNeedsScan = false;
 
                 // process each pending order to produce fills/fire events
-                foreach (var kvp in _pending.OrderBy(x => x.Key))
+                foreach (var kvp in _pending.OrderBySafe(x => x.Key))
                 {
                     var order = kvp.Value;
                     if (order == null)
@@ -279,12 +279,12 @@ namespace QuantConnect.Brokerages.Backtesting
                         continue;
                     }
 
-                    var fills = new OrderEvent[0];
+                    var fills = Array.Empty<OrderEvent>();
 
                     Security security;
                     if (!Algorithm.Securities.TryGetValue(order.Symbol, out security))
                     {
-                        Log.Error("BacktestingBrokerage.Scan(): Unable to process order: " + order.Id + ". The security no longer exists.");
+                        Log.Error($"BacktestingBrokerage.Scan(): Unable to process order: {order.Id}. The security no longer exists. UtcTime: {Algorithm.UtcTime}");
                         // invalidate the order in the algorithm before removing
                         OnOrderEvent(new OrderEvent(order,
                                 Algorithm.UtcTime,
