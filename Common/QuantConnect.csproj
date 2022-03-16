@@ -62,9 +62,11 @@
     </None>
     <Content Include="AlgorithmImports.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
     </Content>
     <Content Include="PandasMapper.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
     </Content>
   </ItemGroup>
 </Project>
