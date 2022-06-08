@@ -70,7 +70,7 @@ namespace QuantConnect.Algorithm.CSharp
         /// </summary>
         public long DataPoints => 4324;
 
-        /// </summary>
+        /// <summary>
         /// Data Points count of the algorithm history
         /// </summary>
         public int AlgorithmHistoryDataPoints => 120;
@@ -99,8 +99,8 @@ namespace QuantConnect.Algorithm.CSharp
             {"Information Ratio", "0"},
             {"Tracking Error", "0"},
             {"Treynor Ratio", "0"},
-            {"Total Fees", "$298.35"},
-            {"Estimated Strategy Capacity", "$85000.00"},
+            {"Total Fees", "€298.35"},
+            {"Estimated Strategy Capacity", "€85000.00"},
             {"Lowest Capacity Asset", "BTCEUR XJ"},
             {"Fitness Score", "0.506"},
             {"Kelly Criterion Estimate", "0"},

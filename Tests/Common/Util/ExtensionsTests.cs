@@ -25,6 +25,7 @@ using QuantConnect.Algorithm;
 using QuantConnect.Algorithm.CSharp;
 using QuantConnect.Algorithm.Framework.Alphas;
 using QuantConnect.Data;
+using QuantConnect.Data.Auxiliary;
 using QuantConnect.Data.Custom.AlphaStreams;
 using QuantConnect.Data.Market;
 using QuantConnect.Data.UniverseSelection;
@@ -42,6 +43,124 @@ namespace QuantConnect.Tests.Common.Util
     [TestFixture]
     public class ExtensionsTests
     {
+        [TestCase(0, 10, 110)]
+        [TestCase(900, 10, 110)]
+        [TestCase(500, 10, 10)]
+
+        [TestCase(0, 100, 100)]
+        [TestCase(100, 100, 100)]
+        [TestCase(500, 100, 100)]
+        [TestCase(990, 100, 200)]
+        [TestCase(900, 100, 200)]
+
+        [TestCase(0, 1000, 1500)]
+        [TestCase(100, 1000, 1000)]
+        [TestCase(500, 1000, 1000)]
+        [TestCase(990, 1000, 1500)]
+
+        [TestCase(0, 10000, 10500)]
+        [TestCase(100, 10000, 10000)]
+        [TestCase(500, 10000, 10000)]
+        [TestCase(990, 10000, 10500)]
+        public void UnevenSecondWaitTime(int nowMilliseconds, int waitInterval, int expectedWaitInterval)
+        {
+            var nowUtc = new DateTime(2022, 04, 1);
+            nowUtc = nowUtc.AddMilliseconds(nowMilliseconds);
+
+            Assert.AreEqual(expectedWaitInterval, nowUtc.GetSecondUnevenWait(waitInterval));
+        }
+
+        [TestCase(SecurityType.Cfd, "20501231", false)]
+        [TestCase(SecurityType.Equity, "20501231", false)]
+        [TestCase(SecurityType.Base, "20501231", false)]
+        [TestCase(SecurityType.Forex, "20501231", false)]
+        [TestCase(SecurityType.Crypto, "20501231", false)]
+        [TestCase(SecurityType.Index, "20501231", false)]
+
+        [TestCase(SecurityType.Option, null, false)]
+        [TestCase(SecurityType.Future, null, false)]
+        [TestCase(SecurityType.FutureOption, null, false)]
+        [TestCase(SecurityType.IndexOption, null, false)]
+
+        [TestCase(SecurityType.Option, "20501231", true)]
+        [TestCase(SecurityType.Future, "20501231", true)]
+        [TestCase(SecurityType.FutureOption, "20501231", true)]
+        [TestCase(SecurityType.IndexOption, "20501231", true)]
+        public void GetDelistingDate(SecurityType securityType, string expectedExpiration, bool isChain)
+        {
+            Symbol symbol = null;
+
+            switch (securityType)
+            {
+                case SecurityType.Base:
+                    symbol = Symbol.CreateBase(typeof(IndexedBaseData), Symbols.AAPL, Market.USA);
+                    break;
+                case SecurityType.Equity:
+                    symbol = Symbols.AAPL;
+                    break;
+                case SecurityType.Option:
+                    symbol = Symbols.SPY_C_192_Feb19_2016;
+                    if (isChain)
+                    {
+                        symbol = symbol.Canonical;
+                    }
+                    else
+                    {
+                        expectedExpiration = symbol.ID.Date.ToString(DateFormat.EightCharacter, CultureInfo.InvariantCulture);
+                    }
+                    break;
+                case SecurityType.Forex:
+                    symbol = Symbols.EURUSD;
+                    break;
+                case SecurityType.Future:
+                    symbol = Symbols.Fut_SPY_Feb19_2016;
+                    if (isChain)
+                    {
+                        symbol = symbol.Canonical;
+                    }
+                    else
+                    {
+                        expectedExpiration = symbol.ID.Date.ToString(DateFormat.EightCharacter, CultureInfo.InvariantCulture);
+                    }
+                    break;
+                case SecurityType.Cfd:
+                    symbol = Symbols.DE30EUR;
+                    break;
+                case SecurityType.Crypto:
+                    symbol = Symbols.BTCEUR;
+                    break;
+                case SecurityType.FutureOption:
+                    symbol = Symbols.CreateFutureOptionSymbol(Symbols.Fut_SPY_Feb19_2016, OptionRight.Call, 10, new DateTime(2022, 05, 01));
+                    if (isChain)
+                    {
+                        symbol = symbol.Canonical;
+                    }
+                    else
+                    {
+                        expectedExpiration = symbol.ID.Date.ToString(DateFormat.EightCharacter, CultureInfo.InvariantCulture);
+                    }
+                    break;
+                case SecurityType.Index:
+                    symbol = Symbols.SPX;
+                    break;
+                case SecurityType.IndexOption:
+                    symbol = Symbol.CreateOption(Symbols.SPX, Symbols.SPX.ID.Market, OptionStyle.European, OptionRight.Call, 1, new DateTime(2022, 05, 02));
+                    if (isChain)
+                    {
+                        symbol = symbol.Canonical;
+                    }
+                    else
+                    {
+                        expectedExpiration = symbol.ID.Date.ToString(DateFormat.EightCharacter, CultureInfo.InvariantCulture);
+                    }
+                    break;
+                default:
+                    break;
+            }
+            var mapFile = TestGlobals.MapFileProvider.Get(AuxiliaryDataKey.Create(symbol)).ResolveMapFile(symbol);
+            Assert.AreEqual(Time.ParseDate(expectedExpiration), symbol.GetDelistingDate(mapFile));
+        }
+
         [TestCase("20220101", false, true, Resolution.Daily)]
         [TestCase("20220101", false, false, Resolution.Daily)]
         [TestCase("20220103 09:31", true, false, Resolution.Minute)]
@@ -892,7 +1011,7 @@ namespace QuantConnect.Tests.Common.Util
             using (Py.GIL())
             {
                 // Try to convert a python class which inherits from a C# object
-                value = PythonEngine.ModuleFromString("testModule",
+                value = PyModule.FromString("testModule",
                     @"
 from AlgorithmImports import *
 
@@ -941,8 +1060,8 @@ class Test(PythonData):
             using (Py.GIL())
             {
                 // Try to convert a python object as a IndicatorBase<TradeBar>
-                var locals = new PyDict();
-                PythonEngine.Exec("class A:\n    pass", null, locals.Handle);
+                using var locals = new PyDict();
+                PythonEngine.Exec("class A:\n    pass", null, locals);
                 var value = locals.GetItem("A").Invoke();
 
                 IndicatorBase<TradeBar> indicatorBaseTradeBar;
@@ -959,7 +1078,7 @@ class Test(PythonData):
             using (Py.GIL())
             {
                 // Try to convert a python class which inherits from a C# object
-                value = PythonEngine.ModuleFromString("testModule",
+                value = PyModule.FromString("testModule",
                     @"
 from AlgorithmImports import *
 
@@ -982,8 +1101,8 @@ class Test(PythonData):
 
             using (Py.GIL())
             {
-                var locals = new PyDict();
-                PythonEngine.Exec(code, null, locals.Handle);
+                using var locals = new PyDict();
+                PythonEngine.Exec(code, null, locals);
                 var pyObject = locals.GetItem("coarseSelector");
                 pyObject.TryConvertToDelegate(out coarseSelector);
             }
@@ -1009,8 +1128,8 @@ class Test(PythonData):
 
             using (Py.GIL())
             {
-                var locals = new PyDict();
-                PythonEngine.Exec("def raise_number(a): raise ValueError(a)", null, locals.Handle);
+                using var locals = new PyDict();
+                PythonEngine.Exec("def raise_number(a): raise ValueError(a)", null, locals);
                 var pyObject = locals.GetItem("raise_number");
                 pyObject.TryConvertToDelegate(out action);
             }
@@ -1022,7 +1141,7 @@ class Test(PythonData):
             }
             catch (PythonException e)
             {
-                Assert.AreEqual($"ValueError : {2}", e.Message);
+                Assert.AreEqual($"{2}", e.Message);
             }
         }
 
@@ -1033,8 +1152,8 @@ class Test(PythonData):
 
             using (Py.GIL())
             {
-                var locals = new PyDict();
-                PythonEngine.Exec("def raise_number(a, b): raise ValueError(a * b)", null, locals.Handle);
+                using var locals = new PyDict();
+                PythonEngine.Exec("def raise_number(a, b): raise ValueError(a * b)", null, locals);
                 var pyObject = locals.GetItem("raise_number");
                 pyObject.TryConvertToDelegate(out action);
             }
@@ -1046,7 +1165,7 @@ class Test(PythonData):
             }
             catch (PythonException e)
             {
-                Assert.AreEqual("ValueError : 6.0", e.Message);
+                Assert.AreEqual("6.0", e.Message);
             }
         }
 
@@ -1057,8 +1176,8 @@ class Test(PythonData):
 
             using (Py.GIL())
             {
-                var locals = new PyDict();
-                PythonEngine.Exec("def raise_number(a, b): raise ValueError(a * b)", null, locals.Handle);
+                using var locals = new PyDict();
+                PythonEngine.Exec("def raise_number(a, b): raise ValueError(a * b)", null, locals);
                 var pyObject = locals.GetItem("raise_number");
                 Assert.Throws<ArgumentException>(() => pyObject.TryConvertToDelegate(out action));
             }
@@ -1132,7 +1251,7 @@ class Test(PythonData):
         {
             using (Py.GIL())
             {
-                var actualDictionary = PythonEngine.ModuleFromString(
+                var actualDictionary = PyModule.FromString(
                     "PyObjectDictionaryConvertToDictionary_Success",
                     @"
 from datetime import datetime as dt
@@ -1165,7 +1284,7 @@ actualDictionary.update({'IBM': dt(2019,10,5)})
         {
             using (Py.GIL())
             {
-                var pyObject = PythonEngine.ModuleFromString(
+                var pyObject = PyModule.FromString(
                     "PyObjectDictionaryConvertToDictionary_FailNotDictionary",
                     "actualDictionary = list()"
                 ).GetAttr("actualDictionary");
@@ -1179,7 +1298,7 @@ actualDictionary.update({'IBM': dt(2019,10,5)})
         {
             using (Py.GIL())
             {
-                var pyObject = PythonEngine.ModuleFromString(
+                var pyObject = PyModule.FromString(
                     "PyObjectDictionaryConvertToDictionary_FailWrongItemType",
                     @"
 actualDictionary = dict()

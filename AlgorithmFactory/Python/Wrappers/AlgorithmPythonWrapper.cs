@@ -516,12 +516,6 @@ namespace QuantConnect.AlgorithmFactory.Python.Wrappers
         public string GetParameter(string name) => _baseAlgorithm.GetParameter(name);
 
         /// <summary>
-        /// Gets the history requests required for provide warm up data for the algorithm
-        /// </summary>
-        /// <returns></returns>
-        public IEnumerable<HistoryRequest> GetWarmupHistoryRequests() => _baseAlgorithm.GetWarmupHistoryRequests();
-
-        /// <summary>
         /// Initialise the Algorithm and Prepare Required Data:
         /// </summary>
         public void Initialize()
@@ -634,7 +628,7 @@ namespace QuantConnect.AlgorithmFactory.Python.Wrappers
             // Only throws if there is an error in its implementation body
             catch (PythonException exception)
             {
-                if (!exception.Message.StartsWith("TypeError : OnEndOfDay()"))
+                if (!exception.Message.StartsWith("OnEndOfDay()"))
                 {
                     _baseAlgorithm.SetRunTimeError(exception);
                 }
@@ -662,7 +656,7 @@ namespace QuantConnect.AlgorithmFactory.Python.Wrappers
             // Only throws if there is an error in its implementation body
             catch (PythonException exception)
             {
-                if (!exception.Message.StartsWith("TypeError : OnEndOfDay()"))
+                if (!exception.Message.StartsWith("OnEndOfDay()"))
                 {
                     _baseAlgorithm.SetRunTimeError(exception);
                 }
@@ -690,7 +684,8 @@ namespace QuantConnect.AlgorithmFactory.Python.Wrappers
 
                     requests.Clear();
 
-                    foreach (PyObject pyRequest in pyRequests)
+                    using var iterator = pyRequests.GetIterator();
+                    foreach (PyObject pyRequest in iterator)
                     {
                         SubmitOrderRequest request;
                         if (TryConvert(pyRequest, out request))

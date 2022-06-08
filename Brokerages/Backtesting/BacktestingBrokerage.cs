@@ -34,6 +34,7 @@ namespace QuantConnect.Brokerages.Backtesting
     /// <summary>
     /// Represents a brokerage to be used during backtesting. This is intended to be only be used with the BacktestingTransactionHandler
     /// </summary>
+    [BrokerageFactory(typeof(BacktestingBrokerageFactory))]
     public class BacktestingBrokerage : Brokerage
     {
         // flag used to indicate whether or not we need to scan for
@@ -586,11 +587,14 @@ namespace QuantConnect.Brokerages.Backtesting
                     }
                 }
 
-                // Cancel any other orders
-                var cancelledOrders = Algorithm.Transactions.CancelOpenOrders(delisting.Symbol);
-                foreach (var cancelledOrder in cancelledOrders)
+                if (!Algorithm.IsWarmingUp)
                 {
-                    Log.Trace("AlgorithmManager.Run(): " + cancelledOrder);
+                    // Cancel any other orders
+                    var cancelledOrders = Algorithm.Transactions.CancelOpenOrders(delisting.Symbol);
+                    foreach (var cancelledOrder in cancelledOrders)
+                    {
+                        Log.Trace("AlgorithmManager.Run(): " + cancelledOrder);
+                    }
                 }
             }
         }
