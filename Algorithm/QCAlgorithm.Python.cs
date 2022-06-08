@@ -692,15 +692,22 @@ namespace QuantConnect.Algorithm
         {
             using (Py.GIL())
             {
-                try
+                if (pyObject.TryConvert(out IndicatorBase indicator, true))
                 {
-                    var value = (((dynamic)pyObject).Current.Value as PyObject).GetAndDispose<decimal>();
-                    Plot(series, value);
+                    Plot(series, indicator);
                 }
-                catch
+                else
                 {
-                    var pythonType = pyObject.GetPythonType().Repr();
-                    throw new ArgumentException($"QCAlgorithm.Plot(): The last argument should be a QuantConnect Indicator object, {pythonType} was provided.");
+                    try
+                    {
+                        var value = (((dynamic)pyObject).Value as PyObject).GetAndDispose<decimal>();
+                        Plot(series, value);
+                    }
+                    catch
+                    {
+                        var pythonType = pyObject.GetPythonType().Repr();
+                        throw new ArgumentException($"QCAlgorithm.Plot(): The last argument should be a QuantConnect Indicator object, {pythonType} was provided.");
+                    }
                 }
             }
         }
@@ -858,6 +865,23 @@ namespace QuantConnect.Algorithm
         {
             var symbols = tickers.ConvertToSymbolEnumerable();
             return PandasConverter.GetDataFrame(History(symbols, span, resolution));
+        }
+
+        /// <summary>
+        /// Gets the historical data for the specified symbols between the specified dates. The symbols must exist in the Securities collection.
+        /// </summary>
+        /// <param name="symbols">The symbols to retrieve historical data for</param>
+        /// <param name="start">The start time in the algorithm's time zone</param>
+        /// <param name="end">The end time in the algorithm's time zone</param>
+        /// <param name="resolution">The resolution to request</param>
+        /// <param name="fillForward">True to fill forward missing data, false otherwise</param>
+        /// <param name="extendedMarket">True to include extended market hours data, false otherwise</param>
+        /// <returns>A python dictionary with a pandas DataFrame containing the requested historical data</returns>
+        [DocumentationAttribute(HistoricalData)]
+        public PyObject History(PyObject tickers, DateTime start, DateTime end, Resolution? resolution = null, bool? fillForward = null, bool? extendedMarket = null)
+        {
+            var symbols = tickers.ConvertToSymbolEnumerable();
+            return PandasConverter.GetDataFrame(History(symbols, start, end, resolution, fillForward, extendedMarket));
         }
 
         /// <summary>
@@ -1104,7 +1128,8 @@ namespace QuantConnect.Algorithm
                     // In order to convert it into a C# Dictionary
                     if (PyDict.IsDictType(headers))
                     {
-                        foreach (PyObject pyKey in headers)
+                        using var iterator = headers.GetIterator();
+                        foreach (PyObject pyKey in iterator)
                         {
                             var key = (string)pyKey.AsManagedObject(typeof(string));
                             var value = (string)headers.GetItem(pyKey).AsManagedObject(typeof(string));

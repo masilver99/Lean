@@ -46,7 +46,7 @@ namespace QuantConnect.Algorithm.CSharp
         /// </summary>
         public override long DataPoints => 6214;
 
-        /// </summary>
+        /// <summary>
         /// Data Points count of the algorithm history
         /// </summary>
         public override int AlgorithmHistoryDataPoints => 61;
@@ -75,8 +75,8 @@ namespace QuantConnect.Algorithm.CSharp
             {"Information Ratio", "-0.859"},
             {"Tracking Error", "0.004"},
             {"Treynor Ratio", "-0.832"},
-            {"Total Fees", "$2.89"},
-            {"Estimated Strategy Capacity", "$8900000000.00"},
+            {"Total Fees", "€2.89"},
+            {"Estimated Strategy Capacity", "€8900000000.00"},
             {"Lowest Capacity Asset", "AAPL R735QTJ8XC9X"},
             {"Fitness Score", "0.506"},
             {"Kelly Criterion Estimate", "0"},

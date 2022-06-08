@@ -45,6 +45,21 @@ namespace QuantConnect.Orders
         /// <param name="symbol">Symbol asset we're seeking to trade</param>
         /// <param name="quantity">Quantity of the asset we're seeking to trade</param>
         /// <param name="time">Time the order was placed</param>
+        /// <param name="price">Price of the order</param>
+        /// <param name="tag">User defined data tag for this order</param>
+        /// <param name="properties">The order properties for this order</param>
+        public MarketOrder(Symbol symbol, decimal quantity, DateTime time, decimal price, string tag = "", IOrderProperties properties = null)
+            : this(symbol, quantity, time, tag, properties)
+        {
+            Price = price;
+        }
+
+        /// <summary>
+        /// New market order constructor
+        /// </summary>
+        /// <param name="symbol">Symbol asset we're seeking to trade</param>
+        /// <param name="quantity">Quantity of the asset we're seeking to trade</param>
+        /// <param name="time">Time the order was placed</param>
         /// <param name="tag">User defined data tag for this order</param>
         /// <param name="properties">The order properties for this order</param>
         /// <param name="userProperties">The user set order properties for this order</param>

@@ -94,9 +94,9 @@ namespace QuantConnect.Algorithm.CSharp
                 _reselectedSpy = 1;
                 _spy = AddEquity("SPY", Resolution.Daily).Symbol;
 
-                if (Securities[_spy].IsTradable)
+                if (!Securities[_spy].IsTradable)
                 {
-                    throw new Exception($"{_spy} should not be tradable");
+                    throw new Exception($"{_spy} should be tradable");
                 }
             }
         }
@@ -116,7 +116,7 @@ namespace QuantConnect.Algorithm.CSharp
         /// </summary>
         public long DataPoints => 229;
 
-        /// </summary>
+        /// <summary>
         /// Data Points count of the algorithm history
         /// </summary>
         public int AlgorithmHistoryDataPoints => 0;
