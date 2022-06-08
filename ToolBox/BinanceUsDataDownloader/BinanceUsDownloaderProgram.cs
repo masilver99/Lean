@@ -37,7 +37,7 @@ namespace QuantConnect.ToolBox.BinanceUsDownloader
                 Console.WriteLine("--resolution=Minute/Hour/Daily/Tick");
                 Environment.Exit(1);
             }
-
+            /*
             try
             {
                 var castResolution = (Resolution)Enum.Parse(typeof(Resolution), resolution);
@@ -61,7 +61,7 @@ namespace QuantConnect.ToolBox.BinanceUsDownloader
             {
                 Log.Error(err);
             }
-
+            */
         }
     }
 }
